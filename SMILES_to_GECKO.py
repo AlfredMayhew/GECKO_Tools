@@ -277,7 +277,7 @@ def Mol_to_GroupDicts(mol, fragment = False):
     return ring_joins, double_cs, backbone_chains, backbone_grps, backbone_hs
 
 def GroupDict_to_GECKO(mol, ringList, dbList, chainDict, grpDict, hDict,
-                       compl_atoms = set(), chain_parent = -1):
+                       chain_compl_atoms = set(), chain_parent = -1):
     """Converts a provided dictionary of groups attached to a 'backbone' of C 
     and O atoms into a string able to be entered into GECKO."""
     #go through each backbone atom and build up the output string
@@ -286,6 +286,8 @@ def GroupDict_to_GECKO(mol, ringList, dbList, chainDict, grpDict, hDict,
     
     compl_dbs = []
     all_db_atoms = [item for sublist in dbList for item in sublist]
+    
+    compl_atoms = set(chain_compl_atoms)
     for root_atom_i in backbone_atoms:
         root_atom = GetAtomWithIntProp(mol, root_atom_i)
         
@@ -294,13 +296,19 @@ def GroupDict_to_GECKO(mol, ringList, dbList, chainDict, grpDict, hDict,
             is_double = root_atom_i in all_db_atoms
             if is_double:
                 db_pair = [x for x in dbList if root_atom_i in x][0]
+                db_partner = [x for x in db_pair if x != root_atom_i][0]
+                db_in_same_backbone = all([(x in chainDict.keys()) for x in db_pair])
+            #add the double bond symbol if we have already completed the other
+            #atom in the double bond
+            if (is_double and (not db_pair in compl_dbs) and (db_partner in compl_atoms)):
+                gecko_str += "="
+                compl_dbs.append(db_pair)
             
             #add the double bond symbol if it is needed before the C (i.e. if this 
             #double bond is on a side chain)
-            if (is_double and 
-                ((not all([(x in chainDict.keys()) for x in db_pair])) and
-                 (chain_parent in db_pair)) and 
-                (db_pair not in compl_dbs)):
+            if (is_double and ((not db_in_same_backbone) and 
+                               (chain_parent in db_pair)) and 
+                (not db_pair in compl_dbs)):
                 gecko_str += "="
                 compl_dbs.append(db_pair)
             
@@ -322,15 +330,20 @@ def GroupDict_to_GECKO(mol, ringList, dbList, chainDict, grpDict, hDict,
             gecko_str += hDict[root_atom_i]
             
             #add the double bond symbol if it is needed after the Hs (if the 
-            #double bond is in the same chain)
-            if (is_double and 
-                (all([(x in chainDict.keys()) for x in db_pair])) and 
-                (db_pair not in compl_dbs)):
+            #double bond is in the same chain and this C atom has no branches 
+            #or functional groups)
+            if (is_double and db_in_same_backbone and (not db_pair in compl_dbs) and
+                (not chainDict[root_atom_i]) and (not grpDict[root_atom_i])):
                 gecko_str += "="
                 compl_dbs.append(db_pair)
 
+
+            for grp in grpDict[root_atom_i]:
+                gecko_str += grp    
+
+
             for chn in chainDict[root_atom_i]:
-                (ringDict2, dbList2, 
+                (ringList2, dbList2, 
                  chainDict2, grpDict2, hDict2) = chn
                 side_str, extra_atoms = GroupDict_to_GECKO(mol, ringList, 
                                                            dbList, chainDict2, 
@@ -341,8 +354,6 @@ def GroupDict_to_GECKO(mol, ringList, dbList, chainDict, grpDict, hDict,
                 for atom_i in extra_atoms:
                     compl_atoms.add(atom_i)
                 
-            for grp in grpDict[root_atom_i]:
-                gecko_str += grp    
                 
         elif root_atom.GetSymbol() == "O":
             gecko_str += "-O-"
@@ -356,15 +367,16 @@ def GroupDict_to_GECKO(mol, ringList, dbList, chainDict, grpDict, hDict,
             pass
         else:
             raise Exception(f"Detected a 'backbone' atom that is neither C or O: {root_atom.GetSymbol()}")
-    compl_atoms.add(root_atom_i)
+        compl_atoms.add(root_atom_i)
     return gecko_str, compl_atoms
         
 def SMILES_to_GECKO(smiles):
     warnings.warn("This code is still under development and may result in incorrect GECKO strings. These will likely fail when input into GECKO, but users should double check all uses.")
     mol = SMILES_to_Mol(smiles)
-    (ringDict, dbList, 
+    (ringList, dbList, 
      chainDict, grpDict, hDict) = Mol_to_GroupDicts(mol)
-    return GroupDict_to_GECKO(mol, ringDict, dbList, chainDict, grpDict, hDict)[0]
+    gecko_str, num = GroupDict_to_GECKO(mol, ringList, dbList, chainDict, grpDict, hDict)
+    return gecko_str
     
 
 
