@@ -250,7 +250,6 @@ def Mol_to_GroupDicts(mol, fragment = False):
        
         #dictionary of SMARTS for each functional group and the GECKO group to 
         #add to the final output string
-        #TODO Add R-NO2 group (be sure it doesn't interfere with R-ONO2)
         group_smarts = {"[$([#6][OX2H1])!$([#6](=O))]":"(OH)", #alcohol (avoiding carboxylic acid)
                         "[$([#6][OX2][OX2H1])!$([#6](=O))]":"(OOH)", #hydroperoxide (avoiding peracid)
                         "[$([#6][OX2][NX3+]([OX1-])(=[OX1]))!$([#6](=O))]" : "(ONO2)", #organonitrate (excluding PAN)
@@ -261,7 +260,8 @@ def Mol_to_GroupDicts(mol, fragment = False):
                         "[CX3](=O)[OX2H1]" : "O(OH)", #carboxylic acid
                         "[CX3](=O)[OX2][OX2H1]" : "O(OOH)", #peracid
                         "[CX3](=O)[OX2][OX1]" : "O(OO.)", #acyl peroxide
-                        "[$([CX3](=O)[OX2][OX2][NX3+]([OX1-])=[OX1])]" : "O(OONO2)" #PAN
+                        "[$([CX3](=O)[OX2][OX2][NX3+]([OX1-])=[OX1])]" : "O(OONO2)", #PAN
+                        "[#6][NX3+]([OX1-])=[OX1]" : "(NO2)" #Nitro
                         }
         #dictionry of smarts that should raise an error (e.g. because they are not suppported by GECKO)
         illegal_smarts = {"[CX3](=O)[OX1]" : "Acyl alkoxy radical",
