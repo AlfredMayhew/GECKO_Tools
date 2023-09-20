@@ -4,7 +4,7 @@ from rdkit import Chem
 from rdkit.Chem import Draw
 from rdkit.Chem import rdmolops
 import itertools
-import warnings
+import re
 
 def H_format(H_num):
     if H_num > 1:
@@ -371,12 +371,38 @@ def GroupDict_to_GECKO(mol, ringList, dbList, chainDict, grpDict, hDict,
     return gecko_str, compl_atoms
         
 def SMILES_to_GECKO(smiles):
-    warnings.warn("This code is still under development and may result in incorrect GECKO strings. These will likely fail when input into GECKO, but users should double check all uses.")
     mol = SMILES_to_Mol(smiles)
     (ringList, dbList, 
      chainDict, grpDict, hDict) = Mol_to_GroupDicts(mol)
     gecko_str, num = GroupDict_to_GECKO(mol, ringList, dbList, chainDict, grpDict, hDict)
     return gecko_str
     
-
-
+def GECKO_to_SMILES(gecko):
+    smiles = gecko
+    
+    #replace functional groups with corresponding SMILES analogues
+    smiles = re.sub("C(\d?)O", r"C\1(=O)", smiles) #carbonyl (in ketone, carboxylic acid, PAN, peracid, or peroxyacyl)
+    smiles = smiles.replace("(OH)", "(O)") #OH (in alcohol or carboxylic acid)
+    smiles = smiles.replace("(OOH)", "(OO)") #OOH (in hydroperoxide, or peracid)
+    smiles = smiles.replace("(OO.)", "(O[O])") #peroxy radical or peroxyacyl
+    smiles = smiles.replace("(O.)", "([O])") #alkoxy radical
+    smiles = smiles.replace("CHO", "C(=O)") #aldehyde
+    smiles = smiles.replace("(ONO2)", "(ON(=O)=O)") #nitrate
+    smiles = smiles.replace("(NO2)", "(N(=O)=O)")
+    smiles = smiles.replace("(OONO2)", "(OON(=O)=O)") #PAN acetyl nitrate portion
+    
+    #remove lowercase 'd' from double bonds
+    smiles = smiles.replace("d", "")
+    
+    #remove H atoms
+    smiles = re.sub("H\d?", "", smiles)
+    
+    #replace ether O atoms
+    smiles = smiles.replace("-O-", "O")
+    
+    #Check that the smiles is valid and return if it is. Otherwise return an error
+    try:
+        SMILES_to_Mol(smiles)
+        return smiles
+    except:
+        raise Exception(f"Invalid SMILES produced from this GECKO string: {smiles}")
