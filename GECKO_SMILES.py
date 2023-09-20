@@ -94,7 +94,7 @@ def Mol_to_GroupDicts(mol, fragment = False):
         - The functional groups each 'backbone' atom
         - The H atoms attached to each 'backbone' atom"""
        
-    backbone_subunit = "[$([#6]),$([OX2]([#6])[#6])]"
+    backbone_subunit = "[$([#6]),$([OX2]([#6,#0*])[#6,#0*])]"
     fragment_label = "[#0*]"
     
     #if this is a fragment then give the dummy atom from fragmentation an origIdx value and record it
