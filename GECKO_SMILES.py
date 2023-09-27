@@ -115,33 +115,63 @@ def Mol_to_GroupDicts(mol, fragment = False):
             
     #identify any atoms that are part of a ring and assign a joining point for each ring
     ring_atom_dict = {i+1 : list(ring_atoms) for i,ring_atoms in enumerate(rdmolops.GetSSSR(mol))}
+    
+    #Now we have recorded ring join points, rings can be split open for the 
+    #rest of the process to simplify the process
+    
+    #make a dict containing the bonds in each ring
+    ring_bond_dict = {}
+    for ring_i,ring_atoms in ring_atom_dict.items():
+        ring_bond_dict[ring_i] = []
+        for a1, a2 in itertools.combinations(ring_atoms, 2):
+            sel_bond = mol.GetBondBetweenAtoms(a1, a2)
+            if sel_bond:
+                ring_bond_dict[ring_i].append(sel_bond.GetIdx())
+                
     split_bonds = {}
     ring_joins = []
-    for ring_no, ring_atoms in ring_atom_dict.items():
-        other_ring_nos = [x for x in ring_atom_dict if x != ring_no]
-        other_ring_atoms = set()
-        for o_ring_no in other_ring_nos:
-            for o_ring_atom in ring_atom_dict[o_ring_no]:
-                other_ring_atoms.add(o_ring_atom)
-        #find one of the ring atoms that is unique to this ring
-        for i in ring_atoms:
-            if i not in other_ring_atoms:
-                unique_atom_i = i
-                unique_atom = mol.GetAtomWithIdx(unique_atom_i)
-        #find the ring neighbour for this unique atom
-        unique_neighs = unique_atom.GetNeighbors()
-        for a in unique_neighs:
-            if a.GetIdx() in ring_atoms:
-                #avoid splitting on double bonds
-                isDouble = mol.GetBondBetweenAtoms(unique_atom_i, a.GetIdx()).GetBondType() == Chem.rdchem.BondType.DOUBLE
-                if not isDouble:
-                    neigh_atom = a
-                    neigh_atom_i = a.GetIdx()
-                
-        split_bonds[ring_no] = mol.GetBondBetweenAtoms(unique_atom_i, neigh_atom_i).GetIdx()
-        ring_joins.append((unique_atom.GetIntProp("origIdx"), ring_no))
-        ring_joins.append((neigh_atom.GetIntProp("origIdx"), ring_no))
+    for ring_no, bond_idxs in ring_bond_dict.items():
+        target_bond_i = None #the index of the bond to be broken      
+        #if this is an epoxide ring, then break the C-C bond
+        any_os = any([mol.GetAtomWithIdx(x).GetSymbol() == "O" for x in ring_atom_dict[ring_no]])
+        if ((len(bond_idxs) == 3) and any_os):
+            #identify the C-C bond
+            for b_i in bond_idxs:
+                b_atoms = (mol.GetBondWithIdx(b_i).GetBeginAtom(),
+                           mol.GetBondWithIdx(b_i).GetEndAtom())
+                if all((x.GetSymbol() == "C" for x in b_atoms)):
+                    #note the bond
+                    target_bond_i = b_i
+                    break
+        #if it isn't an epoxide ring, then identify a unique bond to split (one 
+        #that isn't present in any other rings)
+        else:
+            other_ring_nos = [x for x in ring_atom_dict if x != ring_no]
+            other_ring_bonds = set()
+            for o_ring_no in other_ring_nos:
+                for o_ring_bond in ring_bond_dict[o_ring_no]:
+                    other_ring_bonds.add(o_ring_bond)
+                    
+            for i in bond_idxs:
+                if i not in other_ring_bonds:
+                    b_atoms = (mol.GetBondWithIdx(i).GetBeginAtom(),
+                               mol.GetBondWithIdx(i).GetEndAtom())
+
+                    #avoid splitting on double bonds
+                    isDouble = mol.GetBondWithIdx(i).GetBondType() == Chem.rdchem.BondType.DOUBLE
+                    #avoid splitting C-O bonds
+                    isOxy = any((x.GetSymbol() == "O" for x in b_atoms))
+                    if ((not isDouble) and (not isOxy)):
+                        target_bond_i = i                    
+                        break
+        #store the bond to be broken for this ring
+        join_atoms = (mol.GetBondWithIdx(target_bond_i).GetBeginAtom(),
+                      mol.GetBondWithIdx(target_bond_i).GetEndAtom())
         
+        split_bonds[ring_no] = target_bond_i
+        ring_joins.append((join_atoms[0].GetIntProp("origIdx"), ring_no))
+        ring_joins.append((join_atoms[1].GetIntProp("origIdx"), ring_no))
+
     #Split the rings open for the rest of the process
     if split_bonds:
         mol = rdmolops.FragmentOnBonds(mol, split_bonds.values(), 
