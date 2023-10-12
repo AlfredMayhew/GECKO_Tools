@@ -293,6 +293,15 @@ def Mol_to_GroupDicts(mol, fragment = False):
                         "[$([CX3](=O)[OX2][OX2][NX3+]([OX1-])=[OX1])]" : "O(OONO2)", #PAN
                         "[#6][NX3+]([OX1-])=[OX1]" : "(NO2)" #Nitro
                         }
+        #dictionary of more generalised smarts used for a secondary search where 
+        #multiple functional groups could be present on one backbone atom
+        secondary_smarts = {"[$([#6][OX2H1])!$([#6](=O))]":"[#6][OX2H1]", #alcohol
+                            "[$([#6][OX2][OX2H1])!$([#6](=O))]":"[#6][OX2][OX2H1]", #hydroperoxide
+                            "[$([#6][OX2][NX3+]([OX1-])(=[OX1]))!$([#6](=O))]" : "[#6][OX2][NX3+]([OX1-])(=[OX1])", #organonitrate
+                            "[$([#6][O][OX1])!$([#6](=O))]":"[#6][O][OX1]", #Peroxy radical
+                            "[$([#6][OX1])!$([#6](=O))]" : "[#6][OX1]", # alkoxy radical
+                            "[#6][NX3+]([OX1-])=[OX1]" : "[#6][NX3+]([OX1-])=[OX1]" #Nitro
+                            }
         #dictionry of smarts that should raise an error (e.g. because they are not suppported by GECKO)
         illegal_smarts = {"[CX3](=O)[OX1]" : "Acyl alkoxy radical",
                           "[F,Cl,Br,I]" : "Halogen"}
@@ -303,7 +312,12 @@ def Mol_to_GroupDicts(mol, fragment = False):
 
         for smarts, gecko_grp in group_smarts.items():
             if root_frag.HasSubstructMatch(Chem.MolFromSmarts(smarts)):
-                backbone_grps[root_atom_i].insert(0, gecko_grp) 
+                #if we can have multiple of this functional group then count how many
+                if smarts in secondary_smarts.keys():
+                    for i in range(len(root_frag.GetSubstructMatches(Chem.MolFromSmarts(secondary_smarts[smarts])))):
+                        backbone_grps[root_atom_i].insert(0, gecko_grp) 
+                else:
+                    backbone_grps[root_atom_i].insert(0, gecko_grp) 
     return ring_joins, double_cs, backbone_chains, backbone_grps, backbone_hs
 
 def GroupDict_to_GECKO(mol, ringList, dbList, chainDict, grpDict, hDict,
