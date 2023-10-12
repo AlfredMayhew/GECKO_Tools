@@ -94,7 +94,7 @@ def Mol_to_GroupDicts(mol, fragment = False):
         - The functional groups each 'backbone' atom
         - The H atoms attached to each 'backbone' atom"""
        
-    backbone_subunit = "[$([#6]),$([OX2]([#6,#0*])[#6,#0*])]"
+    backbone_subunit = "[$([#6]),$([OX2]([#6,#0*,#100])[#6,#0*,#100]),$([OX2]([#6,#0*,#100])[OX2][#6,#0*,#100])]"
     fragment_label = "[#0*]"
     
     #if this is a fragment then give the dummy atom from fragmentation an origIdx value and record it
@@ -159,9 +159,8 @@ def Mol_to_GroupDicts(mol, fragment = False):
 
                     #avoid splitting on double bonds
                     isDouble = mol.GetBondWithIdx(i).GetBondType() == Chem.rdchem.BondType.DOUBLE
-                    #avoid splitting C-O bonds
-                    isOxy = any((x.GetSymbol() == "O" for x in b_atoms))
-                    if ((not isDouble) and (not isOxy)):
+
+                    if (not isDouble):
                         target_bond_i = i                    
                         break
         #store the bond to be broken for this ring
@@ -175,7 +174,19 @@ def Mol_to_GroupDicts(mol, fragment = False):
     #Split the rings open for the rest of the process
     if split_bonds:
         mol = rdmolops.FragmentOnBonds(mol, split_bonds.values(), 
-                                       addDummies = False)
+                                       addDummies = True, 
+                                       dummyLabels=[(999, 999)]*len(split_bonds)) 
+        #we're using dummy bonds and the deleting them later to prevent extra H 
+        #being added to O when a C-O bond is broken (for some reason this 
+        #doesn't matter for C-C bonds but does for C-O bonds)
+        # mol = Chem.DeleteSubstructs(mol, Chem.MolFromSmarts('[#0]'))
+        
+        #give the new dummy atoms an 'origIdx' value and set the atomic number
+        #both are set to be different from the dummy atoms created for side-chain fragments
+        for a in mol.GetAtoms():
+            if a.GetIsotope() == 999:
+                a.SetAtomicNum(100) #using 100 as an unrealistic atomic number
+                a.SetIntProp("origIdx", -999)
 
     #find the longest "backbone" in the moleule (C chain or ether oxygens)
     if fragment:
@@ -223,7 +234,7 @@ def Mol_to_GroupDicts(mol, fragment = False):
         for neigh_atom in root_atom.GetNeighbors():
             neigh_atom_i = neigh_atom.GetIntProp("origIdx")
             
-            if (neigh_atom.GetSymbol() == "H"): #count H atoms
+            if (neigh_atom.GetAtomicNum() == 1): #count H atoms
                 h_count += 1
             elif fragment and (neigh_atom_i == frag_atom_i): #ignore the fragmentation wildcard if present
                 pass
@@ -335,7 +346,7 @@ def GroupDict_to_GECKO(mol, ringList, dbList, chainDict, grpDict, hDict,
     for root_atom_i in backbone_atoms:
         root_atom = GetAtomWithIntProp(mol, root_atom_i)
         
-        if root_atom.GetSymbol() == "C":            
+        if root_atom.GetAtomicNum() == 6:            
             #check if this is a double bond C for future adjustments
             is_double = root_atom_i in all_db_atoms
             if is_double:
@@ -399,18 +410,24 @@ def GroupDict_to_GECKO(mol, ringList, dbList, chainDict, grpDict, hDict,
                     compl_atoms.add(atom_i)
                 
                 
-        elif root_atom.GetSymbol() == "O":
-            gecko_str += "-O-"
+        elif root_atom.GetAtomicNum() == 8:
+            gecko_str += "-O"
+            
+            #add ring label if this O is the join point for a ring
+            for join_atom_i, ring_no in ringList:
+                if root_atom_i == join_atom_i:
+                    gecko_str += str(ring_no)
+            
+            gecko_str += "-"
+            
             if hDict[root_atom_i]:
                 raise Exception("Detected H atoms bound to a 'backbone' oxygen.")
             if grpDict[root_atom_i]:
                 raise Exception("Detected groups bound to a 'backbone' oxygen.")
             if chainDict[root_atom_i]:
                 raise Exception("Detected a side chain bound to a 'backbone' oxygen.")
-        elif root_atom.GetSymbol() == "*":
-            pass
         else:
-            raise Exception(f"Detected a 'backbone' atom that is neither C or O: {root_atom.GetSymbol()}")
+            raise Exception(f"Detected a 'backbone' atom that is neither C or O. Atomic Num = {root_atom.GetAtomicNum()}")
         compl_atoms.add(root_atom_i)
     return gecko_str, compl_atoms
         
