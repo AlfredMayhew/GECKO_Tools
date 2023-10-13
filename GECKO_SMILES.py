@@ -176,11 +176,6 @@ def Mol_to_GroupDicts(mol, fragment = False):
         mol = rdmolops.FragmentOnBonds(mol, split_bonds.values(), 
                                        addDummies = True, 
                                        dummyLabels=[(999, 999)]*len(split_bonds)) 
-        #we're using dummy bonds and the deleting them later to prevent extra H 
-        #being added to O when a C-O bond is broken (for some reason this 
-        #doesn't matter for C-C bonds but does for C-O bonds)
-        # mol = Chem.DeleteSubstructs(mol, Chem.MolFromSmarts('[#0]'))
-        
         #give the new dummy atoms an 'origIdx' value and set the atomic number
         #both are set to be different from the dummy atoms created for side-chain fragments
         for a in mol.GetAtoms():
@@ -297,7 +292,7 @@ def Mol_to_GroupDicts(mol, fragment = False):
                         "[$([#6][O][OX1])!$([#6](=O))]":"(OO.)", #Peroxy radical (avoiding acyl peroxy)
                         "[$([#6][OX1])!$([#6](=O))]" : "(O.)", # alkoxy radical (avoiding acyl alkoxy)
                         "[CX3H1](=O)" : "O", # aldehyde
-                        "[#6,#0*][CX3](=O)[#6,#0*]" : "O", #ketone
+                        "[#6,#0*,#100*][CX3](=O)[#6,#0*,#100*]" : "O", #ketone
                         "[CX3](=O)[OX2H1]" : "O(OH)", #carboxylic acid
                         "[CX3](=O)[OX2][OX2H1]" : "O(OOH)", #peracid
                         "[CX3](=O)[OX2][OX1]" : "O(OO.)", #acyl peroxide
