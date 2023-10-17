@@ -454,7 +454,7 @@ def GECKO_to_SMILES(gecko):
     smiles = re.sub("H\d?", "", smiles)
     
     #replace ether O atoms
-    smiles = smiles.replace("-O-", "O")
+    smiles = re.sub("-O(\d?)-", r"O\1", smiles)
     
     #Check that the smiles is valid and return if it is. Otherwise return an error
     try:
