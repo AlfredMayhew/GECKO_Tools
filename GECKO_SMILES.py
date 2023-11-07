@@ -291,13 +291,13 @@ def Mol_to_GroupDicts(mol, fragment = False):
                         "[$([#6][OX2][NX3+]([OX1-])(=[OX1]))!$([#6](=O))]" : "(ONO2)", #organonitrate (excluding PAN)
                         "[$([#6][O][OX1])!$([#6](=O))]":"(OO.)", #Peroxy radical (avoiding acyl peroxy)
                         "[$([#6][OX1])!$([#6](=O))]" : "(O.)", # alkoxy radical (avoiding acyl alkoxy)
-                        "[CX3H1](=O)" : "O", # aldehyde
-                        "[#6,#0*,#100*][CX3](=O)[#6,#0*,#100*]" : "O", #ketone
+                        "[#1,#6,#0*,#100*][CX3](=O)[#1,#6,#0*,#100*]" : "O", # aldehyde or ketone
                         "[CX3](=O)[OX2H1]" : "O(OH)", #carboxylic acid
                         "[CX3](=O)[OX2][OX2H1]" : "O(OOH)", #peracid
                         "[CX3](=O)[OX2][OX1]" : "O(OO.)", #acyl peroxide
                         "[$([CX3](=O)[OX2][OX2][NX3+]([OX1-])=[OX1])]" : "O(OONO2)", #PAN
-                        "[#6][NX3+]([OX1-])=[OX1]" : "(NO2)" #Nitro
+                        "[$([#6][NX3+]([OX1-])=[OX1])!$([CX3](=O)[NX3+]([OX1-])=[OX1])]" : "(NO2)", #Nitro (avoiding carbonyl nitro group detected below)
+                        "[$([CX3](=O)[NX3+]([OX1-])=[OX1])]" : "O(NO2)", #carbonyl nitro group (like PAN but without lining peroxide)
                         }
         #dictionary of more generalised smarts used for a secondary search where 
         #multiple functional groups could be present on one backbone atom
