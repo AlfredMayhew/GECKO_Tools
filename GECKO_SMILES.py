@@ -425,15 +425,8 @@ def GroupDict_to_GECKO(mol, ringList, dbList, chainDict, grpDict, hDict,
             raise Exception(f"Detected a 'backbone' atom that is neither C or O. Atomic Num = {root_atom.GetAtomicNum()}")
         compl_atoms.add(root_atom_i)
     return gecko_str, compl_atoms
-        
-def SMILES_to_GECKO(smiles):
-    mol = SMILES_to_Mol(smiles)
-    (ringList, dbList, 
-     chainDict, grpDict, hDict) = Mol_to_GroupDicts(mol)
-    gecko_str, num = GroupDict_to_GECKO(mol, ringList, dbList, chainDict, grpDict, hDict)
-    return gecko_str
-    
-def GECKO_to_SMILES(gecko):
+
+def GECKO_to_SMILES(gecko, check_output=True):
     smiles = gecko
     
     #replace functional groups with corresponding SMILES analogues
@@ -456,9 +449,36 @@ def GECKO_to_SMILES(gecko):
     #replace ether O atoms
     smiles = re.sub("-O(\d?)-", r"O\1", smiles)
     
-    #Check that the smiles is valid and return if it is. Otherwise return an error
-    try:
-        SMILES_to_Mol(smiles)
+    if check_output:
+        #Check that the smiles is valid and return if it is. Otherwise return an error
+        try:
+            SMILES_to_Mol(smiles)
+            return smiles
+        except:
+            raise Exception(f"Invalid SMILES produced from this GECKO string: {smiles}")
+    else:
         return smiles
-    except:
-        raise Exception(f"Invalid SMILES produced from this GECKO string: {smiles}")
+        
+def SMILES_to_GECKO(smiles, check_output=True):
+    mol = SMILES_to_Mol(smiles)
+    (ringList, dbList, 
+     chainDict, grpDict, hDict) = Mol_to_GroupDicts(mol)
+    gecko_str, num = GroupDict_to_GECKO(mol, ringList, dbList, chainDict, grpDict, hDict)
+    
+    if check_output:
+        #check the GECKO string by converting it back into SMILES and comparing the
+        #new SMILES to the original input SMILES
+        after_smiles = GECKO_to_SMILES(gecko_str)
+        after_canon = Chem.CanonSmiles(after_smiles)
+        #Convert the input smiles to a canonical SMILES for comparison. We need
+        #to ignore stereochemistry (because GECKO does so too)
+        before_canon = Chem.CanonSmiles(smiles, useChiral = 0)
+        
+        if before_canon == after_canon:
+            return gecko_str
+        else:
+            raise Exception(f"Incorrect GECKO output detected. Input SMILES: {smiles}, Output GECKO String: {gecko_str}, Output Translated to Canonical SMILES: {after_canon}, Expected Canonical SMILES: {before_canon}.")
+        
+    else:
+        return gecko_str
+  
