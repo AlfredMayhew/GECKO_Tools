@@ -94,7 +94,7 @@ def Mol_to_GroupDicts(mol, fragment = False):
         - The functional groups each 'backbone' atom
         - The H atoms attached to each 'backbone' atom"""
        
-    backbone_subunit = "[$([#6]),$([OX2]([#6,#0*,#100])[#6,#0*,#100]),$([OX2]([#6,#0*,#100])[OX2][#6,#0*,#100])]"
+    backbone_subunit = "[$([#6]),$([#8X2]([#6,#0*,#100])[#6,#0*,#100]),$([OX2]([#6,#0*,#100])[OX2][#6,#0*,#100])]"
     fragment_label = "[#0*]"
     
     #if this is a fragment then give the dummy atom from fragmentation an origIdx value and record it
@@ -286,26 +286,22 @@ def Mol_to_GroupDicts(mol, fragment = False):
        
         #dictionary of SMARTS for each functional group and the GECKO group to 
         #add to the final output string
-        group_smarts = {"[$([#6][OX2H1])!$([#6](=O))]":"(OH)", #alcohol (avoiding carboxylic acid)
-                        "[$([#6][OX2][OX2H1])!$([#6](=O))]":"(OOH)", #hydroperoxide (avoiding peracid)
-                        "[$([#6][OX2][NX3+]([OX1-])(=[OX1]))!$([#6](=O))]" : "(ONO2)", #organonitrate (excluding PAN)
-                        "[$([#6][O][OX1])!$([#6](=O))]":"(OO.)", #Peroxy radical (avoiding acyl peroxy)
-                        "[$([#6][OX1])!$([#6](=O))]" : "(O.)", # alkoxy radical (avoiding acyl alkoxy)
-                        "[#1,#6,#0*,#100*][CX3](=O)[#1,#6,#0*,#100*]" : "O", # aldehyde or ketone
-                        "[CX3](=O)[OX2H1]" : "O(OH)", #carboxylic acid
-                        "[CX3](=O)[OX2][OX2H1]" : "O(OOH)", #peracid
-                        "[CX3](=O)[OX2][OX1]" : "O(OO.)", #acyl peroxide
-                        "[$([CX3](=O)[OX2][OX2][NX3+]([OX1-])=[OX1])]" : "O(OONO2)", #PAN
-                        "[$([#6][NX3+]([OX1-])=[OX1])!$([CX3](=O)[NX3+]([OX1-])=[OX1])]" : "(NO2)", #Nitro (avoiding carbonyl nitro group detected below)
-                        "[$([CX3](=O)[NX3+]([OX1-])=[OX1])]" : "O(NO2)", #carbonyl nitro group (like PAN but without lining peroxide)
+        group_smarts = {"[#6]=[OX1]" : "O", # carbonyl (any additional functionalities on the carbonyl C will be captured below (e.g. the alcohol group will capture carboxylic acids))
+                        "[#6][OX2H1]":"(OH)", #alcohol
+                        "[#6][OX2][OX2H1]":"(OOH)", #hydroperoxide
+                        "[#6][NX3+]([OX1-])=[OX1]" : "(NO2)", #Nitro
+                        "[#6][OX2][NX3+]([OX1-])(=[OX1])" : "(ONO2)", #organonitrate
+                        "[#6][OX2][OX2][NX3+]([OX1-])=[OX1]" : "(OONO2)", #Peroxynitrate
+                        "[#6][O][OX1]":"(OO.)", #Peroxy radical
+                        "[#6][OX1]" : "(O.)", # alkoxy radical
                         }
-        #dictionary of more generalised smarts used for a secondary search where 
+        #dictionary of smarts used for a secondary search where 
         #multiple functional groups could be present on one backbone atom
-        secondary_smarts = {"[$([#6][OX2H1])!$([#6](=O))]":"[#6][OX2H1]", #alcohol
-                            "[$([#6][OX2][OX2H1])!$([#6](=O))]":"[#6][OX2][OX2H1]", #hydroperoxide
-                            "[$([#6][OX2][NX3+]([OX1-])(=[OX1]))!$([#6](=O))]" : "[#6][OX2][NX3+]([OX1-])(=[OX1])", #organonitrate
-                            "[$([#6][O][OX1])!$([#6](=O))]":"[#6][O][OX1]", #Peroxy radical
-                            "[$([#6][OX1])!$([#6](=O))]" : "[#6][OX1]", # alkoxy radical
+        secondary_smarts = {"[#6][OX2H1]":"[#6][OX2H1]", #alcohol
+                            "[#6][OX2][OX2H1]":"[#6][OX2][OX2H1]", #hydroperoxide
+                            "[#6][OX2][NX3+]([OX1-])(=[OX1])" : "[#6][OX2][NX3+]([OX1-])(=[OX1])", #organonitrate
+                            "[#6][O][OX1]":"[#6][O][OX1]", #Peroxy radical
+                            "[#6][OX1]" : "[#6][OX1]", # alkoxy radical
                             "[#6][NX3+]([OX1-])=[OX1]" : "[#6][NX3+]([OX1-])=[OX1]" #Nitro
                             }
         #dictionry of smarts that should raise an error (e.g. because they are not suppported by GECKO)
@@ -386,10 +382,16 @@ def GroupDict_to_GECKO(mol, ringList, dbList, chainDict, grpDict, hDict,
                 (not chainDict[root_atom_i]) and (not grpDict[root_atom_i])):
                 gecko_str += "="
                 compl_dbs.append(db_pair)
-
-
+            
+            #add carbonyl functionality before adding other functional groups.
+            #We should never have a case of more than one carbonyl per C, so just
+            #do this once
+            if "O" in grpDict[root_atom_i]:
+                gecko_str += "O"
+            #now go through and add any non-carbonyl functional groups
             for grp in grpDict[root_atom_i]:
-                gecko_str += grp    
+                if not grp == "O":
+                    gecko_str += grp    
 
 
             for chn in chainDict[root_atom_i]:
@@ -429,6 +431,12 @@ def GroupDict_to_GECKO(mol, ringList, dbList, chainDict, grpDict, hDict,
 def GECKO_to_SMILES(gecko, check_output=True):
     smiles = gecko
     
+    #remove lowercase 'd' from double bonds
+    smiles = smiles.replace("d", "")
+
+    #remove H atoms
+    smiles = re.sub("H\d?", "", smiles)
+
     #replace functional groups with corresponding SMILES analogues
     smiles = re.sub("C(\d?)O", r"C\1(=O)", smiles) #carbonyl (in ketone, carboxylic acid, PAN, peracid, or peroxyacyl)
     smiles = smiles.replace("(OH)", "(O)") #OH (in alcohol or carboxylic acid)
@@ -439,12 +447,6 @@ def GECKO_to_SMILES(gecko, check_output=True):
     smiles = smiles.replace("(ONO2)", "(ON(=O)=O)") #nitrate
     smiles = smiles.replace("(NO2)", "(N(=O)=O)")
     smiles = smiles.replace("(OONO2)", "(OON(=O)=O)") #PAN acetyl nitrate portion
-    
-    #remove lowercase 'd' from double bonds
-    smiles = smiles.replace("d", "")
-    
-    #remove H atoms
-    smiles = re.sub("H\d?", "", smiles)
     
     #replace ether O atoms
     smiles = re.sub("-O(\d?)-", r"O\1", smiles)
