@@ -305,6 +305,10 @@ def Mol_to_GroupDicts(mol, fragment = False):
                             "[#6][NX3+]([OX1-])=[OX1]" : "[#6][NX3+]([OX1-])=[OX1]" #Nitro
                             }
         #dictionry of smarts that should raise an error (e.g. because they are not suppported by GECKO)
+        #TODO! Move this to the beginning of the function, before any processing. 
+            #This will speed 
+            #up the processing ov invalid species and also allow for the detection 
+            #of invalid functionalities spanning multiple backbone atoms (e.g. allylic alcohols)
         illegal_smarts = {"[CX3](=O)[OX1]" : "Acyl alkoxy radical",
                           "[F,Cl,Br,I]" : "Halogen"}
         
