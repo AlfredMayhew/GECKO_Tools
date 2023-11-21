@@ -79,6 +79,27 @@ def SMILES_to_Mol(smiles):
     mol = Chem.MolFromSmiles(smiles)
     mol = rdmolops.AddHs(mol)
     
+    #remove any aromaticity other than 6-membered benzene-like rings. This is 
+    #all that is recognised by GECKO
+    #First, identify any benzene-like rings
+    if mol.HasSubstructMatch(Chem.MolFromSmarts("c1ccccc1")):
+        arom_matches = mol.GetSubstructMatches(Chem.MolFromSmarts("c1ccccc1"))
+        flat_aroms = set([item for sublist in arom_matches for item in sublist])
+    else:
+        flat_aroms = set()
+    #Then kekulise the molecule and remove aromaticity flags
+    Chem.KekulizeIfPossible(mol, True)
+    
+    #Then go back through the benzene-like atoms and add the aromaticity back 
+    #in and set the right bond type between each of the atoms in the ring
+    for atom_id in flat_aroms:
+        sel_atom = mol.GetAtomWithIdx(atom_id)
+        sel_atom.SetIsAromatic(True)
+        for bond in sel_atom.GetBonds():
+            if ((bond.GetBeginAtomIdx() in flat_aroms) and 
+                (bond.GetBeginAtomIdx() in flat_aroms)):
+                bond.SetBondType(Chem.rdchem.BondType.AROMATIC)
+    
     #label all of the atoms with their initial indices to allow them to be 
     #tracked when fragmenting and editing the molecule
     for a in mol.GetAtoms():
